@@ -1,0 +1,4 @@
+TypeLine;CaseId;StartedBy;StartedDate;Tasks;RendezVous;Variables;SubProcessInstance;VariablesActivity
+P_A;489192;Walter.Bates;20190206 17:31:20;ImportInMyProcess--1.0--489192--Step1--READY;;{"ImportInMyProcess--1.0--489192": {"firstName":"S:Francis", "lastName":"S:Perrin", "age":"L:25"}};;
+P_A;483833;Helen.Kelly;20190129 15:56:46;ImportInMyProcess--1.0--483833--CompleteName--EXECUTING;;{"ImportInMyProcess--1.0--489192": {"firstName":"S:Pierre", "lastName":"S:Perret", "age":"L:65"}};;
+P_A;489355;Helen.Kelly;20190207 10:21:25;ImportInMyProcess--1.0--489355--Step4--READY;;{"ImportInMyProcess--1.0--489192": {"firstName":"S:Judien", "lastName":"S:Dore", "age":"L:31"}};;
