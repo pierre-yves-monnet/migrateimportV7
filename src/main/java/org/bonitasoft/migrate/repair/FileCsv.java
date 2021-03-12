@@ -1,4 +1,4 @@
-package org.bonitasoft.migrate;
+package org.bonitasoft.migrate.repair;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -15,6 +15,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
+
+import org.bonitasoft.migrate.ImportV7;
 
 public class FileCsv {
 
@@ -49,12 +51,12 @@ public class FileCsv {
     public static String VARIABLESACTIVITY = "VariablesActivity";
     public static String SUBPROCESSID = "SubProcessInstance";
 
-    public static List<String> getListFiles(String filePath) {
+    public static List<String> getListFiles(String filePath, String suffix) {
         List<String> listFiles = new ArrayList<String>();
         File folder = new File(filePath);
         for (final File fileEntry : folder.listFiles()) {
             if (!fileEntry.isDirectory()) {
-                if (fileEntry.getName().endsWith(".csv"))
+                if (fileEntry.getName().endsWith(suffix))
                     listFiles.add(fileEntry.getName());
             }
         }

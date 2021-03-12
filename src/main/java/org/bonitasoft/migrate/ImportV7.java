@@ -1,54 +1,21 @@
 package org.bonitasoft.migrate;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardCopyOption.*;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.IOException;
-import java.io.Serializable;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.logging.Logger;
 
-import javax.security.auth.login.LoginException;
-
 import org.bonitasoft.engine.api.ApiAccessType;
-import org.bonitasoft.engine.api.CommandAPI;
-import org.bonitasoft.engine.api.IdentityAPI;
 import org.bonitasoft.engine.api.LoginAPI;
-import org.bonitasoft.engine.bpm.flownode.EndEventDefinition;
-import org.bonitasoft.engine.bpm.flownode.FlowElementContainerDefinition;
-import org.bonitasoft.engine.bpm.flownode.GatewayDefinition;
-import org.bonitasoft.engine.bpm.process.ArchivedProcessInstance;
-import org.bonitasoft.engine.bpm.process.DesignProcessDefinition;
-import org.bonitasoft.engine.bpm.process.ProcessInstance;
-import org.bonitasoft.engine.expression.ExpressionBuilder;
-import org.bonitasoft.engine.identity.User;
-import org.bonitasoft.engine.operation.Operation;
-import org.bonitasoft.engine.operation.OperationBuilder;
-import org.bonitasoft.engine.search.SearchOptionsBuilder;
-import org.bonitasoft.engine.search.SearchResult;
+import org.bonitasoft.engine.session.APISession;
 import org.bonitasoft.engine.util.APITypeManager;
+import org.bonitasoft.migrate.repair.ImportRepair;
+import org.bonitasoft.migrate.walker.ImportWalker;
 
 import com.bonitasoft.engine.api.TenantAPIAccessor;
-import com.bonitasoft.engine.api.ProcessAPI;
-import com.bonitasoft.engine.bpm.process.Index;
-import com.bonitasoft.engine.bpm.process.impl.ProcessInstanceSearchDescriptor;
-
-import org.bonitasoft.engine.session.APISession;
-
-import org.json.simple.JSONValue;
 
 public class ImportV7 {
 
@@ -67,7 +34,6 @@ public class ImportV7 {
 
     public int indexVerification = 1;
     // more than 70 characters
-    private static String blankLine = "                                                                                  ";
 
     /**
      * Decode the different args
@@ -182,9 +148,9 @@ public class ImportV7 {
         importV7.userName = decodeArgs.nextArg();
         importV7.passwd = decodeArgs.nextArg();
         importV7.importPath = decodeArgs.nextArg();
-        importV7.importedPath = decodeArgs.nextArg();
+        importV7.archivedPath = decodeArgs.nextArg();
         importV7.urlDatabase = decodeArgs.nextArg();
-        if (importV7.importedPath == null) {
+        if (importV7.archivedPath == null) {
             logger.severe(usage);
             // h2: jdbc:h2:file:D:/bonita/BPM-SP-7.7.3/workspace/Procergs-V5/h2_database/bonita_journal.db;MVCC=TRUE;DB_CLOSE_ON_EXIT=FALSE;IGNORECASE=TRUE;AUTO_SERVER=TRUE;
             return;
@@ -196,49 +162,19 @@ public class ImportV7 {
             return;
         }
 
-        MonitorImport monitorImport = new MonitorImport();
-        List<String> listFiles = FileCsv.getListFiles(importV7.importPath);
-
-        // detect the number of line per process to calculed the total time needed
-        int totalProcess = 0;
-        int totalCase = 0;
-        for (String fileName : listFiles) {
-            long nbCases = FileCsv.getNumberCsvLine(importV7.importPath + File.separator + fileName);
-            totalCase += nbCases;
-            totalProcess++;
-            logger.info("Detected [" + (fileName + "]" + blankLine).substring(0, 70) + " nbCases[" + nbCases + "]");
-        }
-
-        List<ProcessStatus> listWorkProcess = new ArrayList<ProcessStatus>();
-
-        for (String fileName : listFiles) {
-            ProcessStatus processStatus = new ProcessStatus();
-            processStatus.fileName = fileName;
-            listWorkProcess.add(processStatus);
-        }
-
-        monitorImport.startImport(totalProcess, totalCase);
-
-        for (ProcessStatus processStatus : listWorkProcess) {
-            ImportProcessMgmt importProcessManagement = new ImportProcessMgmt();
-            importProcessManagement.importOneProcess(importV7, processStatus, monitorImport, importV7.apiSession);
-        }
-
-        logger.info(" -- Status:");
-        for (ProcessStatus processStatus : listWorkProcess)
-            logger.info("   " + processStatus.toString());
-
-        logger.info(" -- Errors:");
-        int totalErrors = 0;
-        for (ProcessStatus processStatus : listWorkProcess) {
-            totalErrors += processStatus.listErrors.size();
-            for (int i = 0; i < processStatus.listErrors.size(); i++)
-                logger.info("   " + i + ". " + processStatus.listErrors.get(i));
-        }
-        logger.info(" -- END Import " + monitorImport.totalProcess + " (" + monitorImport.totalCase + " cases) done in " + ProcessStatus.getHumanTime(monitorImport.getTotalTime()) + " Errors:" + totalErrors);
-
+        
+        
+        // ------------------- CSV file
+        ImportRepair importCsvFile = new ImportRepair() ;
+        importCsvFile.importCsvFile(importV7);
+        
+        ImportWalker importJsonFile = new ImportWalker();
+        importJsonFile.importJsonFile( importV7);
+        
     }
 
+   
+    
     /* ******************************************************************************** */
     /*                                                                                  */
     /*
@@ -248,13 +184,13 @@ public class ImportV7 {
     /**
      * login
      */
-    String applicationUrl;
-    String applicationName;
-    String userName;
-    String passwd;
-    String importPath;
-    String importedPath;
-    String urlDatabase;
+    public String applicationUrl;
+    public String applicationName;
+    public String userName;
+    public String passwd;
+    public String importPath;
+    public String archivedPath;
+    public String urlDatabase;
 
     public APISession apiSession;
 

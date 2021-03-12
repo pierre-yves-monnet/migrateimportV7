@@ -1,14 +1,9 @@
-package org.bonitasoft.migrate;
+package org.bonitasoft.migrate.repair;
 
 import java.io.File;
 import java.io.PrintWriter;
 import java.io.Serializable;
 import java.io.StringWriter;
-import java.lang.management.MonitorInfo;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -22,10 +17,8 @@ import java.util.logging.Logger;
 
 import org.bonitasoft.engine.api.CommandAPI;
 import org.bonitasoft.engine.api.IdentityAPI;
-import org.bonitasoft.engine.bpm.actor.ActorInstance;
 import org.bonitasoft.engine.bpm.data.DataInstance;
 import org.bonitasoft.engine.bpm.flownode.ActivityDefinition;
-import org.bonitasoft.engine.bpm.flownode.ActivityInstance;
 import org.bonitasoft.engine.bpm.flownode.ActivityStates;
 import org.bonitasoft.engine.bpm.flownode.EndEventDefinition;
 import org.bonitasoft.engine.bpm.flownode.FlowElementContainerDefinition;
@@ -33,7 +26,6 @@ import org.bonitasoft.engine.bpm.flownode.FlowNodeDefinition;
 import org.bonitasoft.engine.bpm.flownode.FlowNodeInstance;
 import org.bonitasoft.engine.bpm.flownode.GatewayDefinition;
 import org.bonitasoft.engine.bpm.flownode.HumanTaskDefinition;
-import org.bonitasoft.engine.bpm.flownode.TaskInstance;
 import org.bonitasoft.engine.bpm.process.ArchivedProcessInstance;
 import org.bonitasoft.engine.bpm.process.DesignProcessDefinition;
 import org.bonitasoft.engine.bpm.process.ProcessDefinitionNotFoundException;
@@ -48,15 +40,16 @@ import org.bonitasoft.engine.operation.OperationBuilder;
 import org.bonitasoft.engine.search.SearchOptionsBuilder;
 import org.bonitasoft.engine.search.SearchResult;
 import org.bonitasoft.engine.session.APISession;
-import org.bonitasoft.migrate.MonitorImport.OperationMarkerToken;
-import org.bonitasoft.migrate.ProcessInstanceDescription.TasksInstanceIndentified;
+import org.bonitasoft.migrate.ImportV7;
+import org.bonitasoft.migrate.repair.ProcessInstanceDescription.TasksInstanceIndentified;
+import org.bonitasoft.migrate.tool.OperationTimeTracker.OperationMarkerToken;
+import org.bonitasoft.migrate.tool.Toolbox;
 import org.json.simple.JSONValue;
 
 import com.bonitasoft.engine.api.ProcessAPI;
 import com.bonitasoft.engine.api.TenantAPIAccessor;
 import com.bonitasoft.engine.bpm.process.Index;
 import com.bonitasoft.engine.bpm.process.impl.ProcessInstanceSearchDescriptor;
-import com.bonitasoft.engine.bpm.process.impl.ProcessInstanceUpdater;
 
 public class ImportProcessMgmt {
 
@@ -89,7 +82,7 @@ public class ImportProcessMgmt {
         this.apiSession = apiSession;
         this.playSql = new PlaySql(importV7.urlDatabase);
 
-        FileCsv fileCsv = new FileCsv(importV7.importPath, importV7.importedPath);
+        FileCsv fileCsv = new FileCsv(importV7.importPath, importV7.archivedPath);
         long beginProcess = System.currentTimeMillis();
 
         ImportListener importListener = new ImportListener();
@@ -119,7 +112,7 @@ public class ImportProcessMgmt {
             if (importV7.onlyArchivedCase)
                 prefixReportName += "_ARCHIVED";
 
-            importListener.startListener(importV7.saveReportInCsv, processStatus.processName, processStatus.processVersion, prefixReportName, importV7.importedPath);
+            importListener.startListener(importV7.saveReportInCsv, processStatus.processName, processStatus.processVersion, prefixReportName, importV7.archivedPath);
 
             long processDefinitionId = getPermissiveProcessDefinition(processStatus.processName, processStatus.processVersion, processAPI);
 
@@ -144,7 +137,7 @@ public class ImportProcessMgmt {
                     processStatus.oneHumanTask = activity.getName();
             }
 
-            mapGatewaysDefinition = new HashMap<String, GatewayDefinition>();
+            mapGatewaysDefinition = new HashMap<>();
             @SuppressWarnings("deprecation")
             Set<GatewayDefinition> listGateways = flowElement.getGateways();
             for (GatewayDefinition gateway : listGateways) {
@@ -167,14 +160,14 @@ public class ImportProcessMgmt {
                     long durationAdv = System.currentTimeMillis() - beginProcess;
                     long durationTotal = percentAdv == 0 ? 0 : (long) (100.0 * durationAdv / percentAdv);
 
-                    logger.info("    MonitorExport:" + monitorImport.getOperationMarkerInfo());
-                    logger.info(processStatus.processName + "  " + processStatus.getNbCasesProcessed() + "/" + processStatus.nbCasesDetected + " (" + String.format("%.1f", percentAdv) + " %)" + (percentAdv > 0 ? (" ~> " + ProcessStatus.getHumanTime(durationTotal - durationAdv)) : "") + " GLOBAL:"
+                    logger.info("    MonitorExport:" + monitorImport.getOperationTimeTracker().getOperationMarkerInfo());
+                    logger.info(processStatus.processName + "  " + processStatus.getNbCasesProcessed() + "/" + processStatus.nbCasesDetected + " (" + String.format("%.1f", percentAdv) + " %)" + (percentAdv > 0 ? (" ~> " + Toolbox.getHumanTime(durationTotal - durationAdv)) : "") + " GLOBAL:"
                             + monitorImport.getEstimationToEnd(processStatus.getNbCasesProcessed(), processStatus.nbCaseImported, processStatus.nbCaseAlreadyPresent, processStatus.nbCaseError));
                 }
 
-                OperationMarkerToken tokenOneCase = monitorImport.startOperationMarker("case");
+                OperationMarkerToken tokenOneCase = monitorImport.getOperationTimeTracker().startOperationMarker("case");
                 StatusImport statusImport = importOneProcessInstance(record, importV7, importListener);
-                monitorImport.endOperationMarker(tokenOneCase);
+                monitorImport.getOperationTimeTracker().endOperationMarker(tokenOneCase);
 
                 if (statusImport == StatusImport.OK)
                     processStatus.nbCaseImported++;
@@ -200,7 +193,7 @@ public class ImportProcessMgmt {
 
         monitorImport.addStepProcess(processStatus.nbCaseImported + processStatus.nbCaseError + processStatus.nbCaseAlreadyPresent);
         processStatus.timeExecution = endProcess - beginProcess;
-        logger.info(processStatus.fileName + "  Imported:" + processStatus.nbCaseImported + ", Present:" + processStatus.nbCaseAlreadyPresent + " Error:" + processStatus.nbCaseError + " Detected:" + processStatus.nbCasesDetected + " Finished in " + ProcessStatus.getHumanTime(endProcess - beginProcess));
+        logger.info(processStatus.fileName + "  Imported:" + processStatus.nbCaseImported + ", Present:" + processStatus.nbCaseAlreadyPresent + " Error:" + processStatus.nbCaseError + " Detected:" + processStatus.nbCasesDetected + " Finished in " + Toolbox.getHumanTime(endProcess - beginProcess));
 
         return processStatus.nbCaseImported;
     }
@@ -232,7 +225,7 @@ public class ImportProcessMgmt {
         public VariablesDescription variablesProcesses = null;
         public VariablesDescription variablesActivity = null;
 
-        Set<String> tasksInErrorBeforeMigration = new HashSet<String>();
+        Set<String> tasksInErrorBeforeMigration = new HashSet<>();
 
         Map<String, Object> record;
         boolean isDebug;
@@ -307,17 +300,17 @@ public class ImportProcessMgmt {
 
                 if (processInstanceContext.isActiveCase) {
 
-                    OperationMarkerToken tokenSearchProcessInstances = monitorImport.startOperationMarker("searchProcessInstances");
+                    OperationMarkerToken tokenSearchProcessInstances = monitorImport.getOperationTimeTracker().startOperationMarker("searchProcessInstances");
                     SearchResult<ProcessInstance> searchProcessInstance = processAPI.searchProcessInstances(searchOptionsBuilder.done());
-                    monitorImport.endOperationMarker(tokenSearchProcessInstances);
+                    monitorImport.getOperationTimeTracker().endOperationMarker(tokenSearchProcessInstances);
 
                     isAlreadyPresent = (!searchProcessInstance.getResult().isEmpty());
                     if (isAlreadyPresent)
                         processInstanceContext.caseIdV7 = searchProcessInstance.getResult().get(0).getRootProcessInstanceId();
                 } else {
-                    OperationMarkerToken tokenSearchProcessInstances = monitorImport.startOperationMarker("searchProcessInstances");
+                    OperationMarkerToken tokenSearchProcessInstances = monitorImport.getOperationTimeTracker().startOperationMarker("searchProcessInstances");
                     SearchResult<ArchivedProcessInstance> searchProcessInstance = processAPI.searchArchivedProcessInstances(searchOptionsBuilder.done());
-                    monitorImport.endOperationMarker(tokenSearchProcessInstances);
+                    monitorImport.getOperationTimeTracker().endOperationMarker(tokenSearchProcessInstances);
 
                     isAlreadyPresent = (!searchProcessInstance.getResult().isEmpty());
                     if (isAlreadyPresent)
@@ -351,11 +344,11 @@ public class ImportProcessMgmt {
                 operationAtBegining = true;
                 operationUpdateIndexBySQL = true;
             }
-            final Map<String, Serializable> parameters = new HashMap<String, Serializable>();
+            final Map<String, Serializable> parameters = new HashMap<>();
             parameters.put("process_definition_id", processStatus.processDefinition.getId());
 
             List<TaskDescription> listTaskIdentifier = null;
-            ArrayList<String> startPoints = new ArrayList<String>();
+            ArrayList<String> startPoints = new ArrayList<>();
 
             // -------------------- calculate the list of history
             String tasks = (String) record.get(FileCsv.TASKS);
@@ -448,7 +441,7 @@ public class ImportProcessMgmt {
             // variables
             // update the data now
 
-            List<Operation> listOperations = new ArrayList<Operation>();
+            List<Operation> listOperations = new ArrayList<>();
             if (operationAtBegining) {
                 // only way for the Archive case : go by the operation, and we collect only the ROOT process task
                 Map<String, Object> rootVariables = processInstanceContext.variablesProcesses.getRootProcess(processStatus.processDefinition.getName(), processStatus.processDefinition.getVersion());
@@ -509,9 +502,9 @@ public class ImportProcessMgmt {
             parameters.put("context", context);
 
             // -------------------------------------------- Create the case now
-            OperationMarkerToken tokenCommandExecute = monitorImport.startOperationMarker("commandExecute");
+            OperationMarkerToken tokenCommandExecute = monitorImport.getOperationTimeTracker().startOperationMarker("commandExecute");
             Serializable resultCommand = commandAPI.execute("multipleStartPointsProcessCommand", parameters);
-            monitorImport.endOperationMarker(tokenCommandExecute);
+            monitorImport.getOperationTimeTracker().endOperationMarker(tokenCommandExecute);
 
             if (!(resultCommand instanceof ProcessInstance)) {
                 processStatus.error("Can't create a case, result is [" + resultCommand.getClass().getName() + "]", null);
@@ -575,9 +568,9 @@ public class ImportProcessMgmt {
             if (operationUpdateIndex) {
                 Index index = getIndexFromNumber(importV7.indexVerification);
                 if (index != null) {
-                    OperationMarkerToken tokenUpdateProcessInstanceIndex = monitorImport.startOperationMarker("updateProcessInstanceIndex");
+                    OperationMarkerToken tokenUpdateProcessInstanceIndex = monitorImport.getOperationTimeTracker().startOperationMarker("updateProcessInstanceIndex");
                     processAPI.updateProcessInstanceIndex(processInstanceContext.rootProcessInstance.getId(), index, (String) record.get(FileCsv.CASEID));
-                    monitorImport.endOperationMarker(tokenUpdateProcessInstanceIndex);
+                    monitorImport.getOperationTimeTracker().endOperationMarker(tokenUpdateProcessInstanceIndex);
                 }
 
                 // update the history
@@ -598,11 +591,11 @@ public class ImportProcessMgmt {
                 listSqlParameters.add(processInstanceContext.caseIdV5);
                 listSqlParameters.add(processInstanceContext.rootProcessInstance.getId());
 
-                OperationMarkerToken tokenUpdateSQLProcessInstanceIndex = monitorImport.startOperationMarker("updateSQLProcessInstanceIndex");
+                OperationMarkerToken tokenUpdateSQLProcessInstanceIndex = monitorImport.getOperationTimeTracker().startOperationMarker("updateSQLProcessInstanceIndex");
                 String colDatabase = getColumnFilterFromNumber(importV7.indexVerification);
                 if (colDatabase != null)
                     playSql.updateSql("update ARCH_PROCESS_INSTANCE set " + colDatabase + " = ? where SOURCEOBJECTID=?", listSqlParameters);
-                monitorImport.endOperationMarker(tokenUpdateSQLProcessInstanceIndex);
+                monitorImport.getOperationTimeTracker().endOperationMarker(tokenUpdateSQLProcessInstanceIndex);
             }
 
             // update the RendezVous gateway
@@ -795,11 +788,11 @@ public class ImportProcessMgmt {
                     Serializable value = null;
                     try {
                         if (variablesProcessInstance.get(key) != null) {
-                            OperationMarkerToken tokenUpdateProcessDataInstance = monitorImport.startOperationMarker("updateProcessDataInstance");
+                            OperationMarkerToken tokenUpdateProcessDataInstance = monitorImport.getOperationTimeTracker().startOperationMarker("updateProcessDataInstance");
                             value = transformData(taskIdentifier, processInstanceId, null, null, key, variablesProcessInstance.get(key), processAPI);
 
                             processAPI.updateProcessDataInstance(getV7VariableDataName(key), processInstanceId, value);
-                            monitorImport.endOperationMarker(tokenUpdateProcessDataInstance);
+                            monitorImport.getOperationTimeTracker().endOperationMarker(tokenUpdateProcessDataInstance);
                         }
                     } catch (Exception e) {
                         processInstanceContext.addErrorMessage(" data[" + key + "] value[" + value + "] error (nullpointer=variable does not exist) " + e.getMessage());
@@ -810,7 +803,7 @@ public class ImportProcessMgmt {
         }
     }
 
-    private Map<Long, Boolean> cacheActorFilterOnTask = new HashMap<Long, Boolean>();
+    private Map<Long, Boolean> cacheActorFilterOnTask = new HashMap<>();
 
     /**
      * @param caseContext
@@ -827,7 +820,7 @@ public class ImportProcessMgmt {
                             "Can't find task[" + taskIdentifier.taskName + "] with status {ready,executing}" + " processInstance[" + caseContext.processInstanceDescription.getProcessInstanceFromProcessDefinition(taskIdentifier) + "] - " + (taskIdentifier.error != null ? taskIdentifier.error : ""));
                 return false;
             }
-            Map<String, Object> variablesActivityInstance = (Map<String, Object>) caseContext.variablesActivity.content.get(taskIdentifier);
+            Map<String, Object> variablesActivityInstance = (Map<String,Object>) caseContext.variablesActivity.content.get(taskIdentifier);
             // if the task is Failed, then we can't update the variable, so first move the state to READY, then we go back to FAILED
             if (tasksInstanceIndentified.isTaskFailed) {
                 try {
@@ -842,11 +835,11 @@ public class ImportProcessMgmt {
             for (String key : variablesActivityInstance.keySet()) {
                 try {
                     if (variablesActivityInstance.get(key) != null) {
-                        OperationMarkerToken tokenUpdateActivityDataInstance = monitorImport.startOperationMarker("updateActivityDataInstance");
+                        OperationMarkerToken tokenUpdateActivityDataInstance = monitorImport.getOperationTimeTracker().startOperationMarker("updateActivityDataInstance");
                         Serializable value = transformData(taskIdentifier, caseContext.processInstanceDescription.getProcessInstanceFromProcessDefinition(taskIdentifier), taskIdentifier, tasksInstanceIndentified.taskInstanceId, key, variablesActivityInstance.get(key), processAPI);
 
                         processAPI.updateActivityDataInstance(getV7VariableDataName(key), tasksInstanceIndentified.taskInstanceId, value);
-                        monitorImport.endOperationMarker(tokenUpdateActivityDataInstance);
+                        monitorImport.getOperationTimeTracker().endOperationMarker(tokenUpdateActivityDataInstance);
                     }
                 } catch (Exception e) {
                     caseContext.addErrorMessage("Data[" + key + "] error (nullpointer=variable does not exist) " + e.getMessage());
@@ -859,7 +852,7 @@ public class ImportProcessMgmt {
                 // a actor filter on that task ? If yes, we have to replay the actor filter at the end
                 if (!cacheActorFilterOnTask.containsKey(tasksInstanceIndentified.humanTask.getFlownodeDefinitionId())) {
                     // search it
-                    OperationMarkerToken tokenSearchActor = monitorImport.startOperationMarker("updateActors");
+                    OperationMarkerToken tokenSearchActor = monitorImport.getOperationTimeTracker().startOperationMarker("updateActors");
                     try {
                         DesignProcessDefinition designProcess = processAPI.getDesignProcessDefinition(tasksInstanceIndentified.humanTask.getProcessDefinitionId());
                         FlowElementContainerDefinition flowElementContainer = designProcess.getFlowElementContainer();
@@ -872,7 +865,7 @@ public class ImportProcessMgmt {
 
                         cacheActorFilterOnTask.put(tasksInstanceIndentified.humanTask.getFlownodeDefinitionId(), false);
                     }
-                    monitorImport.endOperationMarker(tokenSearchActor);
+                    monitorImport.getOperationTimeTracker().endOperationMarker(tokenSearchActor);
                 }
                 replayActorTask = cacheActorFilterOnTask.get(tasksInstanceIndentified.humanTask.getFlownodeDefinitionId());
             }
@@ -891,9 +884,9 @@ public class ImportProcessMgmt {
              */
             if (replayActorTask) {
                 try {
-                    OperationMarkerToken tokenUpdateActors = monitorImport.startOperationMarker("updateActors");
+                    OperationMarkerToken tokenUpdateActors = monitorImport.getOperationTimeTracker().startOperationMarker("updateActors");
                     processAPI.updateActorsOfUserTask(tasksInstanceIndentified.taskInstanceId);
-                    monitorImport.endOperationMarker(tokenUpdateActors);
+                    monitorImport.getOperationTimeTracker().endOperationMarker(tokenUpdateActors);
                 } catch (Exception e) {
                     caseContext.addErrorMessage("Activity can't be retryTask " + e.getMessage());
                 }
@@ -927,7 +920,7 @@ public class ImportProcessMgmt {
      */
     public class VariablesDescription {
 
-        public Map<TaskDescription, Map<String, Object>> content = new HashMap<TaskDescription, Map<String, Object>>();
+        public Map<TaskDescription, Map<String, Object>> content = new HashMap<>();
 
         public Map<String, Object> getRootProcess(String processName, String processVersion) {
             for (TaskDescription taskIdentifier : content.keySet()) {

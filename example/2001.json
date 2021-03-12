@@ -1,0 +1,47 @@
+{
+  "processName": "Proceso admisiones",
+  "processVersion": "3.7",
+  "reference": "2001",
+  "userName" : "Walter.Bates",
+  "instanciationContract": {
+    "catRegistroInput": {
+      "nombreusuario": "32",
+      "primernombre": "546",
+      "segundonombre": "654",
+      "apellidopaterno": "465",
+      "apellidomaterno": "465",
+      "correoelectronico": "465",
+      "password": "4654",
+      "isEliminado": false,
+      "ayuda": true,
+      "catCampus": null,
+      "catGestionEscolar": null
+    },
+    "catSolicitudDeAdmisionInput": {
+      "catLugarExamen": null,
+      "catCampus": null,
+      "catPeriodo": null,
+      "primerNombre": "1231",
+      "segundoNombre": "1489",
+      "apellidoPaterno": "789",
+      "apellidoMaterno": "4657+",
+      "correoElectronico": "687+",
+      "catPaisExamen": null,
+      "catEstadoExamen": null,
+      "ciudadExamen": null,
+      "avisoPrivacidad": true,
+      "ciudadExamenPais": null,
+      "catGestionEscolar": null,
+      "catPropedeutico": null,
+      "catCampusEstudio": null,
+      "necesitoAyuda": false
+    }
+  },
+  "steps": [
+    {
+      "taskName": "Validar Cuenta",
+      "userName": "Walter.Bates",
+      "contract": {}
+    }
+  ]
+}

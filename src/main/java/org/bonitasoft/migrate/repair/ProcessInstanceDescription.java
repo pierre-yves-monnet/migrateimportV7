@@ -1,4 +1,4 @@
-package org.bonitasoft.migrate;
+package org.bonitasoft.migrate.repair;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -15,9 +15,8 @@ import org.bonitasoft.engine.bpm.process.ProcessDefinitionNotFoundException;
 import org.bonitasoft.engine.exception.SearchException;
 import org.bonitasoft.engine.search.SearchOptionsBuilder;
 import org.bonitasoft.engine.search.SearchResult;
-import org.bonitasoft.migrate.ImportProcessMgmt.TaskDescription;
-
-import org.bonitasoft.migrate.MonitorImport.OperationMarkerToken;
+import org.bonitasoft.migrate.repair.ImportProcessMgmt.TaskDescription;
+import org.bonitasoft.migrate.tool.OperationTimeTracker.OperationMarkerToken;
 
 import com.bonitasoft.engine.api.ProcessAPI;
 
@@ -102,7 +101,7 @@ public class ProcessInstanceDescription {
         while (count > 0 && !allIsInitialised) {
             count--;
             allIsInitialised = true;
-            OperationMarkerToken tokenWaitInitializing = monitorImport.startOperationMarker("waitInitializing");
+            OperationMarkerToken tokenWaitInitializing = monitorImport.getOperationTimeTracker().startOperationMarker("waitInitializing");
 
             for (FlowNodeInstance flowNodeInstance : searchFlowNode.getResult()) {
                 if (flowNodeInstance.getState().equals(ActivityStates.INITIALIZING_STATE)) {
@@ -122,7 +121,7 @@ public class ProcessInstanceDescription {
                     executeSearchFlowNode(processAPI, monitorImport);
                 } catch (Exception e) {
                 }
-            monitorImport.endOperationMarker(tokenWaitInitializing);
+            monitorImport.getOperationTimeTracker().endOperationMarker(tokenWaitInitializing);
 
         }
 
@@ -171,7 +170,7 @@ public class ProcessInstanceDescription {
      */
     private void executeSearchFlowNode(ProcessAPI processAPI, MonitorImport monitorImport) throws SearchException {
 
-        OperationMarkerToken tokenSearchFlowNode = monitorImport.startOperationMarker("searchFlowNode");
+        OperationMarkerToken tokenSearchFlowNode = monitorImport.getOperationTimeTracker().startOperationMarker("searchFlowNode");
 
         SearchOptionsBuilder searchOptionsBuilder = new SearchOptionsBuilder(0, 1000);
         searchOptionsBuilder.filter(FlowNodeInstanceSearchDescriptor.ROOT_PROCESS_INSTANCE_ID,
@@ -181,7 +180,7 @@ public class ProcessInstanceDescription {
         // processAPI.searchActivities(searchOptionsBuilder.done());
         searchFlowNode = processAPI.searchFlowNodeInstances(searchOptionsBuilder.done());
 
-        monitorImport.endOperationMarker(tokenSearchFlowNode);
+        monitorImport.getOperationTimeTracker().endOperationMarker(tokenSearchFlowNode);
 
     }
 }
