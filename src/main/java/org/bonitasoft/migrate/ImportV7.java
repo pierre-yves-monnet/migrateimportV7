@@ -75,7 +75,7 @@ public class ImportV7 {
 
         // String providerURL          = args.length>0 ? args[0] : null;
         DecodeArg decodeArgs = new DecodeArg(args);
-        List<String> listProcessFilter = new ArrayList<String>();
+        List<String> listProcessFilter = new ArrayList<>();
 
         String usage = "[option] APPLICATIONURL APPLICATIONNAME LOGINNAME PASSWORD IMPORTPATH MOVEIMPORTEDPATH URLDATABASE\n";
         usage += "  Options: -f <ListOfProcesses> import only theses process, example -f CIENTEC_ASC_AssinaturaLaudos--1.0;DOC___Publicacao_de_documento--3.0\n";
@@ -155,7 +155,7 @@ public class ImportV7 {
             // h2: jdbc:h2:file:D:/bonita/BPM-SP-7.7.3/workspace/Procergs-V5/h2_database/bonita_journal.db;MVCC=TRUE;DB_CLOSE_ON_EXIT=FALSE;IGNORECASE=TRUE;AUTO_SERVER=TRUE;
             return;
         }
-        logger.info("ImportV7 V1.4.0 (March 5 2019)");
+        logger.info("ImportV7 V2.1.0 (March 30 2021)");
         logger.info("java.version = [" + System.getProperty("java.version") + "]");
 
         if (!importV7.login(false)) {
@@ -224,7 +224,7 @@ public class ImportV7 {
 
             return true;
         } catch (final Exception e) {
-            logger.severe("Can't connect : " + e.getMessage());
+            logger.severe("Can't connect : " + e.toString());
             return false;
         }
 

@@ -63,17 +63,18 @@ public class RobotDataItem {
             userName=null;
         contract = (Map<String,Serializable>) mainJson.get("instanciationContract");
         List<Map<String,Object>> steps = (List)  mainJson.get("steps");
-        
-        for (Map<String,Object> stepJson : steps)
-        {
-            RobotStep robotStep = new RobotStep();
-            robotStep.taskName= (String) stepJson.get("taskName");
-            robotStep.userName= (String) stepJson.get("userName");
-            if (robotStep.userName!=null && robotStep.userName.trim().length()==0)
-                robotStep.userName=null;
-            
-            robotStep.contract = (Map<String,Serializable>) stepJson.get("contract");
-            listSteps.add( robotStep );
+        if (steps !=null) { 
+            for (Map<String,Object> stepJson : steps)
+            {
+                RobotStep robotStep = new RobotStep();
+                robotStep.taskName= (String) stepJson.get("taskName");
+                robotStep.userName= (String) stepJson.get("userName");
+                if (robotStep.userName!=null && robotStep.userName.trim().length()==0)
+                    robotStep.userName=null;
+                
+                robotStep.contract = (Map<String,Serializable>) stepJson.get("contract");
+                listSteps.add( robotStep );
+            }
         }
     }
     

@@ -1,14 +1,19 @@
 package org.bonitasoft.migrate.walker;
 
 import java.io.PrintWriter;
+import java.io.Serializable;
 import java.io.StringWriter;
+import java.util.Map;
 import java.util.logging.Logger;
 
 import org.bonitasoft.engine.api.IdentityAPI;
+import org.bonitasoft.engine.bpm.contract.ContractDefinition;
 import org.bonitasoft.engine.bpm.flownode.ActivityStates;
 import org.bonitasoft.engine.bpm.flownode.HumanTaskInstance;
 import org.bonitasoft.engine.bpm.flownode.HumanTaskInstanceSearchDescriptor;
+import org.bonitasoft.engine.bpm.flownode.UserTaskDefinition;
 import org.bonitasoft.engine.bpm.process.ArchivedProcessInstance;
+import org.bonitasoft.engine.bpm.process.DesignProcessDefinition;
 import org.bonitasoft.engine.bpm.process.ProcessInstance;
 import org.bonitasoft.engine.identity.User;
 import org.bonitasoft.engine.search.SearchOptionsBuilder;
@@ -56,8 +61,11 @@ public class RobotExecutor {
     public ExecuteResult execute(RobotDataItem robotDataItem) throws Exception {
 
         ExecuteResult executeResult = new ExecuteResult();
+        TransformContract transformContract = new TransformContract();
+
         // Creation
         Long processDefinitionId = processAPI.getProcessDefinitionId(robotDataItem.processName, robotDataItem.processVersion);
+        DesignProcessDefinition pdef = processAPI.getDesignProcessDefinition(processDefinitionId);
 
         // if the case already exist with the refrence ? 
         if (robotDataItem.reference != null) {
@@ -69,12 +77,15 @@ public class RobotExecutor {
         }
 
         // Case creation 
+        ContractDefinition processContract = processAPI.getProcessContract(processDefinitionId);
         User userCreation = (robotDataItem.userName == null) ? null : identityAPI.getUserByUserName(robotDataItem.userName);
-
+        Map<String,Serializable> contractTransformed = transformContract.transformContract(robotDataItem.contract, processContract);
+        
+        
         if (userCreation != null) {
-            executeResult.processInstance = processAPI.startProcessWithInputs(userCreation.getId(), processDefinitionId, robotDataItem.contract);
+            executeResult.processInstance = processAPI.startProcessWithInputs(userCreation.getId(), processDefinitionId, contractTransformed);
         } else {
-            executeResult.processInstance = processAPI.startProcessWithInputs(processDefinitionId, robotDataItem.contract);
+            executeResult.processInstance = processAPI.startProcessWithInputs(processDefinitionId, contractTransformed);
         }
         
         // set the reference 
@@ -123,7 +134,12 @@ public class RobotExecutor {
                 Long userTaskId = (userTask == null ? -1 : userTask.getId());
                 processAPI.assignUserTask(foundHumanTask.getId(), userTaskId);
 
-                processAPI.executeUserTask(userTaskId, foundHumanTask.getId(), robotStep.contract);
+                UserTaskDefinition task = (UserTaskDefinition) pdef.getFlowElementContainer().getActivity(foundHumanTask.getName());
+                ContractDefinition contractDefinition = task.getContract();
+                
+                contractTransformed = transformContract.transformContract(robotStep.contract,contractDefinition);
+
+                processAPI.executeUserTask(userTaskId, foundHumanTask.getId(), contractTransformed);
                 executeResult.log.append("task[" + robotStep.taskName + "] executed;");
             } catch (Exception e) {
                 StringWriter sw = new StringWriter();

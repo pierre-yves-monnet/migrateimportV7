@@ -42,6 +42,7 @@ public class ImportRepair {
             ImportProcessMgmt importProcessManagement = new ImportProcessMgmt();
             importProcessManagement.importOneProcess(importV7, processStatus, monitorImport, importV7.apiSession);
         }
+        monitorImport.endImport();
 
         logger.info(" -- Status:");
         for (ProcessStatus processStatus : listWorkProcess)
