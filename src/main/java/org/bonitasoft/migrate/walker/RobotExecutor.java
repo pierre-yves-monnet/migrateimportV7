@@ -118,7 +118,7 @@ public class RobotExecutor {
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                     }
-                } else {
+                } else if (searchHumanTask.getCount() > 0) {
                     foundHumanTask = searchHumanTask.getResult().get(0);
                 }
             } // end search humanTasks 
